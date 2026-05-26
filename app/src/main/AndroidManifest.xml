@@ -12,6 +12,9 @@
         android:supportsRtl="true"
         android:theme="@style/Theme.BibliothequeApp">
         <activity
+            android:name=".AddEditActivity"
+            android:exported="false" />
+        <activity
             android:name=".DetailActivity"
             android:exported="false" />
         <activity
@@ -24,6 +27,8 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
             android:name=".DetailActivity"
+            android:parentActivityName=".MainActivity"/>
+            android:name=".AddEditActivity"
             android:parentActivityName=".MainActivity"/>
         </activity>
     </application>
