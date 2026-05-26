@@ -5,18 +5,23 @@ import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.TextView;
-
 import androidx.annotation.NonNull;
 import androidx.recyclerview.widget.RecyclerView;
-
-import java.util.ArrayList;
+import java.util.List;
 
 public class LivreAdapter extends RecyclerView.Adapter<LivreAdapter.LivreViewHolder> {
 
-    private ArrayList<Livre> listeLivres;
+    public interface OnLivreClickListener {
+        void onLivreClick(Livre livre);
+        void onLivreLongClick(Livre livre, int position);
+    }
 
-    public LivreAdapter(ArrayList<Livre> listeLivres) {
+    private List<Livre> listeLivres;
+    private OnLivreClickListener listener;
+
+    public LivreAdapter(List<Livre> listeLivres, OnLivreClickListener listener) {
         this.listeLivres = listeLivres;
+        this.listener = listener;
     }
 
     @NonNull
@@ -34,12 +39,6 @@ public class LivreAdapter extends RecyclerView.Adapter<LivreAdapter.LivreViewHol
         holder.tvTitreLivre.setText(livre.getTitre());
         holder.tvAuteurLivre.setText("Auteur : " + livre.getAuteur());
         holder.tvIsbnLivre.setText("ISBN : " + livre.getIsbn());
-        holder.itemView.setOnClickListener(v -> {
-            android.content.Intent intent = new android.content.Intent(
-                    v.getContext(), DetailActivity.class);
-            intent.putExtra("livre", livre);
-            v.getContext().startActivity(intent);
-        });
 
         if (livre.isDisponible()) {
             holder.tvDisponibilite.setText("Disponible");
@@ -48,15 +47,25 @@ public class LivreAdapter extends RecyclerView.Adapter<LivreAdapter.LivreViewHol
             holder.tvDisponibilite.setText("Indisponible");
             holder.tvDisponibilite.setBackgroundColor(Color.parseColor("#C62828"));
         }
+
+        holder.itemView.setOnClickListener(v -> {
+            if (listener != null) listener.onLivreClick(livre);
+        });
+
+        holder.itemView.setOnLongClickListener(v -> {
+            if (listener != null) {
+                int pos = holder.getAdapterPosition();
+                if (pos != RecyclerView.NO_POSITION)
+                    listener.onLivreLongClick(livre, pos);
+            }
+            return true;
+        });
     }
 
     @Override
-    public int getItemCount() {
-        return listeLivres.size();
-    }
+    public int getItemCount() { return listeLivres.size(); }
 
     public static class LivreViewHolder extends RecyclerView.ViewHolder {
-
         TextView tvTitreLivre, tvAuteurLivre, tvIsbnLivre, tvDisponibilite;
 
         public LivreViewHolder(@NonNull View itemView) {

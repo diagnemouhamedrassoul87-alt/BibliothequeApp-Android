@@ -3,19 +3,27 @@ package com.example.bibliothequeapp;
 import android.content.Intent;
 import android.os.Bundle;
 import android.widget.Toast;
+import androidx.activity.result.ActivityResultLauncher;
+import androidx.activity.result.contract.ActivityResultContracts;
+import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 import com.google.android.material.floatingactionbutton.FloatingActionButton;
 import java.util.ArrayList;
+import java.util.List;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 public class MainActivity extends AppCompatActivity {
 
-    private static final int REQUEST_ADD_EDIT = 100;
     private RecyclerView recyclerViewLivres;
-    private LivreAdapter livreAdapter;
-    private ArrayList<Livre> listeLivres;
     private FloatingActionButton fabAjouterLivre;
+    private LivreAdapter livreAdapter;
+    private List<Livre> listeLivres;
+    private AppDatabase database;
+    private ExecutorService executorService;
+    private ActivityResultLauncher<Intent> addEditLauncher;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -24,51 +32,118 @@ public class MainActivity extends AppCompatActivity {
 
         recyclerViewLivres = findViewById(R.id.recyclerViewLivres);
         fabAjouterLivre = findViewById(R.id.fabAjouterLivre);
+        database = AppDatabase.getInstance(this);
+        executorService = Executors.newSingleThreadExecutor();
+        listeLivres = new ArrayList<>();
 
-        initialiserLivres();
+        livreAdapter = new LivreAdapter(listeLivres, new LivreAdapter.OnLivreClickListener() {
+            @Override
+            public void onLivreClick(Livre livre) {
+                Intent intent = new Intent(MainActivity.this, DetailActivity.class);
+                intent.putExtra("livre", livre);
+                startActivity(intent);
+            }
+
+            @Override
+            public void onLivreLongClick(Livre livre, int position) {
+                afficherOptions(livre);
+            }
+        });
 
         recyclerViewLivres.setLayoutManager(new LinearLayoutManager(this));
-        livreAdapter = new LivreAdapter(listeLivres);
         recyclerViewLivres.setAdapter(livreAdapter);
+
+        addEditLauncher = registerForActivityResult(
+                new ActivityResultContracts.StartActivityForResult(),
+                result -> {
+                    if (result.getResultCode() == RESULT_OK && result.getData() != null) {
+                        Intent data = result.getData();
+                        Livre livre = (Livre) data.getSerializableExtra(AddEditActivity.EXTRA_LIVRE);
+                        String mode = data.getStringExtra(AddEditActivity.EXTRA_MODE);
+                        if (livre == null) return;
+                        if (AddEditActivity.MODE_ADD.equals(mode)) {
+                            ajouterLivre(livre);
+                        } else {
+                            modifierLivre(livre);
+                        }
+                    }
+                }
+        );
 
         fabAjouterLivre.setOnClickListener(v -> {
             Intent intent = new Intent(MainActivity.this, AddEditActivity.class);
             intent.putExtra(AddEditActivity.EXTRA_MODE, AddEditActivity.MODE_ADD);
-            startActivityForResult(intent, REQUEST_ADD_EDIT);
+            addEditLauncher.launch(intent);
+        });
+
+        chargerLivres();
+    }
+
+    private void chargerLivres() {
+        executorService.execute(() -> {
+            List<Livre> livres = database.livreDao().getAllLivres();
+            runOnUiThread(() -> {
+                listeLivres.clear();
+                listeLivres.addAll(livres);
+                livreAdapter.notifyDataSetChanged();
+            });
         });
     }
 
-    private void initialiserLivres() {
-        listeLivres = new ArrayList<>();
-        listeLivres.add(new Livre(1, "Le Petit Prince", "Antoine de Saint-Exupéry", "9780156013987", true));
-        listeLivres.add(new Livre(2, "L'Étranger", "Albert Camus", "9782070360024", false));
-        listeLivres.add(new Livre(3, "Les Misérables", "Victor Hugo", "9782253096344", true));
-        listeLivres.add(new Livre(4, "Une si longue lettre", "Mariama Bâ", "9782841290529", true));
-        listeLivres.add(new Livre(5, "Le Vieux Nègre et la Médaille", "Ferdinand Oyono", "9782264018304", false));
-        listeLivres.add(new Livre(6, "Madame Bovary", "Gustave Flaubert", "9782070409228", true));
-        listeLivres.add(new Livre(7, "La Peste", "Albert Camus", "9782070360420", false));
-        listeLivres.add(new Livre(8, "Sous l'orage", "Seydou Badian", "9782708707691", true));
+    private void ajouterLivre(Livre livre) {
+        executorService.execute(() -> {
+            livre.setId(0);
+            database.livreDao().insert(livre);
+            runOnUiThread(() -> {
+                Toast.makeText(this, "Livre ajouté !", Toast.LENGTH_SHORT).show();
+                chargerLivres();
+            });
+        });
+    }
+
+    private void modifierLivre(Livre livre) {
+        executorService.execute(() -> {
+            database.livreDao().update(livre);
+            runOnUiThread(() -> {
+                Toast.makeText(this, "Livre modifié !", Toast.LENGTH_SHORT).show();
+                chargerLivres();
+            });
+        });
+    }
+
+    private void supprimerLivre(Livre livre) {
+        executorService.execute(() -> {
+            database.livreDao().delete(livre);
+            runOnUiThread(() -> {
+                Toast.makeText(this, "Livre supprimé !", Toast.LENGTH_SHORT).show();
+                chargerLivres();
+            });
+        });
+    }
+
+    private void afficherOptions(Livre livre) {
+        new AlertDialog.Builder(this)
+                .setTitle(livre.getTitre())
+                .setItems(new String[]{"Modifier", "Supprimer"}, (dialog, which) -> {
+                    if (which == 0) {
+                        Intent intent = new Intent(this, AddEditActivity.class);
+                        intent.putExtra(AddEditActivity.EXTRA_MODE, AddEditActivity.MODE_EDIT);
+                        intent.putExtra(AddEditActivity.EXTRA_LIVRE, livre);
+                        addEditLauncher.launch(intent);
+                    } else {
+                        new AlertDialog.Builder(this)
+                                .setTitle("Supprimer")
+                                .setMessage("Confirmer la suppression ?")
+                                .setPositiveButton("Supprimer", (d, w) -> supprimerLivre(livre))
+                                .setNegativeButton("Annuler", null)
+                                .show();
+                    }
+                }).show();
     }
 
     @Override
-    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
-        super.onActivityResult(requestCode, resultCode, data);
-        if (requestCode == REQUEST_ADD_EDIT && resultCode == RESULT_OK && data != null) {
-            String mode = data.getStringExtra(AddEditActivity.EXTRA_MODE);
-            Livre livre = (Livre) data.getSerializableExtra(AddEditActivity.EXTRA_LIVRE);
-            int position = data.getIntExtra(AddEditActivity.EXTRA_POSITION, -1);
-
-            if (livre == null) return;
-
-            if (AddEditActivity.MODE_ADD.equals(mode)) {
-                livre.setId(listeLivres.size() + 1);
-                listeLivres.add(livre);
-                Toast.makeText(this, "Livre ajouté !", Toast.LENGTH_SHORT).show();
-            } else if (AddEditActivity.MODE_EDIT.equals(mode) && position >= 0) {
-                listeLivres.set(position, livre);
-                Toast.makeText(this, "Livre modifié !", Toast.LENGTH_SHORT).show();
-            }
-            livreAdapter.notifyDataSetChanged();
-        }
+    protected void onDestroy() {
+        super.onDestroy();
+        if (executorService != null) executorService.shutdown();
     }
 }
