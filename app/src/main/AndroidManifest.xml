@@ -12,13 +12,19 @@
         android:supportsRtl="true"
         android:theme="@style/Theme.BibliothequeApp">
         <activity
+            android:name=".DetailActivity"
+            android:exported="false" />
+        <activity
             android:name=".MainActivity"
-            android:exported="true">
+            android:exported="true"
+            tools:ignore="ExtraText">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
 
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
+            android:name=".DetailActivity"
+            android:parentActivityName=".MainActivity"/>
         </activity>
     </application>
 

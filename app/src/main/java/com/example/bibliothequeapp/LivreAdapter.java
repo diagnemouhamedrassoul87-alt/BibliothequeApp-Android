@@ -34,6 +34,12 @@ public class LivreAdapter extends RecyclerView.Adapter<LivreAdapter.LivreViewHol
         holder.tvTitreLivre.setText(livre.getTitre());
         holder.tvAuteurLivre.setText("Auteur : " + livre.getAuteur());
         holder.tvIsbnLivre.setText("ISBN : " + livre.getIsbn());
+        holder.itemView.setOnClickListener(v -> {
+            android.content.Intent intent = new android.content.Intent(
+                    v.getContext(), DetailActivity.class);
+            intent.putExtra("livre", livre);
+            v.getContext().startActivity(intent);
+        });
 
         if (livre.isDisponible()) {
             holder.tvDisponibilite.setText("Disponible");
